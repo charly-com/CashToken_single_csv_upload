@@ -2,9 +2,6 @@ const express = require('express');
 const multer = require('multer');
 const csvParser = require('csv-parser');
 const mongoose = require('mongoose');
-const fs = require('fs').promises; // Use promisified version of fs
-const util = require('util');
-const pipeline = util.promisify(require('stream').pipeline);
 const stream = require('stream');
 const Readable = stream.Readable;
 
@@ -59,27 +56,36 @@ function normalizeMSISDN(msisdn) {
 // Function to process CSV file
 async function processCSV(buffer) {
   const readStream = new Readable();
-  readStream._read = () => {}; // Necessary for the stream to start flowing
-
   readStream.push(buffer);
   readStream.push(null); // Signal the end of the stream
 
   const entries = [];
 
-  const stream = csvParser()
-    .on('data', (row) => {
-      // Transform and normalize MSISDN to international format
-      const msisdn = normalizeMSISDN(row.MSISDN);
+  const csvTransform = csvParser({
+    mapHeaders: ({ header, index }) => header.trim(),
+  });
 
-      entries.push({
+  const transformStream = new stream.Transform({
+    objectMode: true,
+    transform(chunk, encoding, callback) {
+      const msisdn = normalizeMSISDN(chunk.MSISDN);
+
+      this.push({
         msisdn,
-        quantity: parseInt(row.quantity),
-        narration: row.narration,
+        quantity: parseInt(chunk.quantity),
+        narration: chunk.narration,
       });
-    });
+      callback();
+    },
+  });
 
-  // Pipe the ReadStream to the CSV parser
-  await pipeline(readStream, stream);
+  // Pipe the ReadStream through csv-parser and the custom transform stream
+  readStream.pipe(csvTransform).pipe(transformStream);
+
+  // Collect the transformed entries
+  for await (const entry of transformStream) {
+    entries.push(entry);
+  }
 
   return entries;
 }
@@ -87,6 +93,7 @@ async function processCSV(buffer) {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
 
 
 
