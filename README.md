@@ -23,7 +23,7 @@ This Node.js application provides an API for uploading CSV files, processing the
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/charly-com/CashToken_single_csv_upload
 Install dependencies:
 bash
 Copy code
