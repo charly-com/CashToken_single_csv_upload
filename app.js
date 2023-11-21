@@ -37,8 +37,25 @@ app.post('/upload', upload.single('csvFile'), async (req, res) => {
     // Stream and parse CSV file
     const entries = await processCSV(req.file.buffer);
 
-    // Save entries to the database
-    await Entry.insertMany(entries);
+    // Divide entries into batches of 1000
+    const batches = [];
+    let batch = [];
+    for (const entry of entries) {
+      batch.push(entry);
+      if (batch.length === 1000) {
+        batches.push(batch);
+        batch = [];
+      }
+    }
+    if (batch.length > 0) {
+      batches.push(batch);
+    }
+
+    // Save entries in batches
+    for (const batch of batches) {
+      //using the insertMany method instead of inserting each entry individually. This is more efficient
+      await Entry.insertMany(batch);
+    }
 
     res.status(200).send('File uploaded and entries saved to the database.');
   } catch (error) {
